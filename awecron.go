@@ -35,7 +35,9 @@ func getCfg(cfgDir *string) {
 	panicErr(&err)
 	err = toml.Unmarshal(cfgData, &cfg)
 	panicErr(&err)
-	// TODO: implement check if values are zero
+	if cfg.Max <= 0 || cfg.Min <= 0 || cfg.Timeout <= 0 {
+		log.Panic("awecron error: global configuration values cfg{} should be greater than zero")
+	}
 }
 
 // gets cronjob directory paths
@@ -94,7 +96,7 @@ func runCj(cjDir *string) {
 		}
 		// make sure its greater than zero
 		if cjCfg <= 0 {
-			log.Println("error: cjCfg can't be less or equal to zero")
+			log.Println("awecron error: cronjob config cjCfg should be greater than zero")
 			return
 		}
 		// create tmr file again
