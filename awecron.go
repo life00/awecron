@@ -59,7 +59,7 @@ func checkCj(cjDir *string) bool {
 	cjTmr, err := os.Stat(*cjDir + "/tmr")
 	if err != nil {
 		curUser, _ := user.Current()
-		log.Println("awecron error (%s) {%s}: problem getting last modification date of tmr file", curUser.Username, path.Base(*cjDir))
+		log.Printf("awecron error (%s) {%s}: problem getting last modification date of tmr file", curUser.Username, path.Base(*cjDir))
 		return false
 	}
 	// check if its time to run the cronjob
