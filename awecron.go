@@ -27,7 +27,7 @@ func getCfg(cfgDir *string) {
 	cfgData, err := os.ReadFile(*cfgDir + "/cfg")
 	if err != nil {
 		curUser, _ := user.Current()
-		log.Fatalf("awecron fatal (%s): problem reading global config file cfgDir/cfg as global config data cfgData", curUser.Username)
+		log.Fatalf("awecron fatal (%s): problem reading global config file cfgDir/cfg and saving as global config data cfgData", curUser.Username)
 	}
 	err = toml.Unmarshal(cfgData, &cfg)
 	if err != nil {
@@ -93,7 +93,7 @@ func runCj(cjDir *string) {
 		// its also possible to do it with fmt.Fscanf, but I've chosen this option
 		cjCfgData, err := os.ReadFile(*cjDir + "/cfg")
 		if err != nil {
-			log.Printf("awecron error (%s) {%s}: problem reading cronjob config file cjDir/cfg as cronjob config data cjCfgData", curUser.Username, path.Base(*cjDir))
+			log.Printf("awecron error (%s) {%s}: problem reading cronjob config file cjDir/cfg and saving as cronjob config data cjCfgData", curUser.Username, path.Base(*cjDir))
 			return
 		}
 		// conversion
