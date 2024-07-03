@@ -27,7 +27,7 @@ func getCfg(cfgDir *string) {
 	cfgData, err := os.ReadFile(*cfgDir + "/cfg")
 	if err != nil {
 		curUser, _ := user.Current()
-		log.Fatalf("awecron fatal (%s): problem reading global config cfgDir/cfg", curUser.Username)
+		log.Fatalf("awecron fatal (%s): problem reading global config file cfgDir/cfg as global config data cfgData", curUser.Username)
 	}
 	err = toml.Unmarshal(cfgData, &cfg)
 	if err != nil {
@@ -45,7 +45,7 @@ func getCjDirs(cfgDir *string) (cjDirs []string) {
 	cjTmrs, err := filepath.Glob(*cfgDir + "/*/tmr")
 	if err != nil {
 		curUser, _ := user.Current()
-		log.Fatalf("awecron fatal (%s): problem getting an array of cronjob timers cjTmrs", curUser.Username)
+		log.Fatalf("awecron fatal (%s): problem matching cfgDir/*/tmr and getting an array of cronjob timers cjTmrs", curUser.Username)
 	}
 	// removing the /tmr end
 	for t := 0; t < len(cjTmrs); t++ {
@@ -59,7 +59,7 @@ func checkCj(cjDir *string) bool {
 	cjTmr, err := os.Stat(*cjDir + "/tmr")
 	if err != nil {
 		curUser, _ := user.Current()
-		log.Printf("awecron error (%s) {%s}: problem getting last modification date of tmr file", curUser.Username, path.Base(*cjDir))
+		log.Printf("awecron error (%s) {%s}: problem getting last modification date of cjDir/tmr file as file info cjTmr", curUser.Username, path.Base(*cjDir))
 		return false
 	}
 	// check if its time to run the cronjob
@@ -77,20 +77,23 @@ func runCj(cjDir *string) {
 	err := os.Remove(*cjDir + "/tmr")
 	if err != nil {
 		// fatal error because if it fails to disable the cronjob due to a problem then there may be an infinite loop
-		log.Fatalf("awecron fatal (%s) {%s}: problem deleting tmr file", curUser.Username, path.Base(*cjDir))
+		log.Fatalf("awecron fatal (%s) {%s}: problem deleting cjDir/tmr file", curUser.Username, path.Base(*cjDir))
 	}
 	// running the executable
 	cjCmd := exec.Command(*cjDir + "/run")
+	// TODO: accept stdout?
 	err = cjCmd.Run()
 	// if successful run
 	if err == nil {
 		// log everything
 		log.Printf("awecron info (%s) {%s} [%d]: cronjob run is successful", curUser.Username, path.Base(*cjDir), cjCmd.ProcessState.ExitCode())
+		// TODO: put this all into a new function
+
 		// getting the plain text interval configuration
 		// its also possible to do it with fmt.Fscanf, but I've chosen this option
 		cjCfgData, err := os.ReadFile(*cjDir + "/cfg")
 		if err != nil {
-			log.Printf("awecron error (%s) {%s}: problem reading cronjob config file cjDir/cfg", curUser.Username, path.Base(*cjDir))
+			log.Printf("awecron error (%s) {%s}: problem reading cronjob config file cjDir/cfg as cronjob config data cjCfgData", curUser.Username, path.Base(*cjDir))
 			return
 		}
 		// conversion
@@ -109,7 +112,7 @@ func runCj(cjDir *string) {
 		// all fatal errors because I am not risking with tmr file
 		// because it might result in an infinite loop for whatever reason
 		if err != nil {
-			log.Fatalf("awecron fatal (%s) {%s}: problem creating tmr file", curUser.Username, path.Base(*cjDir))
+			log.Fatalf("awecron fatal (%s) {%s}: problem creating cjDir/tmr file", curUser.Username, path.Base(*cjDir))
 		}
 		// closing cjTmr file
 		err = cjTmr.Close()
@@ -140,10 +143,13 @@ func main() {
 	// getting cronjob directories
 	var cjDirs []string = getCjDirs(&cfgDir)
 
+	// TODO: implement parallelism
 	for d := 0; d < len(cjDirs); d++ {
+		// TODO: implement timeout here, or for cjCmd
 		if checkCj(&cjDirs[d]) {
 			runCj(&cjDirs[d])
 		}
+		// TODO: dynamic sleep here
 	}
 	// ...
 }
