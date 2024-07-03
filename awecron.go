@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"os"
@@ -79,9 +80,13 @@ func runCj(cjDir *string) {
 		// fatal error because if it fails to disable the cronjob due to a problem then there may be an infinite loop
 		log.Fatalf("awecron fatal (%s) {%s}: problem deleting cjDir/tmr file", curUser.Username, path.Base(*cjDir))
 	}
-	// running the executable
+	// creating the cmd struct
 	cjCmd := exec.Command(*cjDir + "/run")
-	// TODO: accept stdout?
+	// recording stderr
+	// I could've used cjCmd.CombinedOutput() but I am not interested in recording stdout
+	var cjStderr bytes.Buffer
+	cjCmd.Stderr = &cjStderr
+	// running the executable
 	err = cjCmd.Run()
 	// if successful run
 	if err == nil {
@@ -125,8 +130,12 @@ func runCj(cjDir *string) {
 			log.Fatalf("awecron fatal (%s) {%s}: problem setting last modification time of tmr file", curUser.Username, path.Base(*cjDir))
 		}
 	} else {
-		// log everything
+		// log exit status
 		log.Printf("awecron error (%s) {%s} [%d]: cronjob run returned an error", curUser.Username, path.Base(*cjDir), cjCmd.ProcessState.ExitCode())
+		// log stderr if it is not empty
+		if cjStderr.String() != "" {
+			log.Printf("awecron info (%s) {%s}: cronjob run stderr output:\n==========\n%s\n==========", curUser.Username, path.Base(*cjDir), cjStderr.String())
+		}
 	}
 }
 
