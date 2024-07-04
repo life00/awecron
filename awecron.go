@@ -89,19 +89,22 @@ func getCjDirs(cfgDir *string) (cjDirs []string) {
 }
 
 // check if its time to run the cronjob
-func checkCj(cjDir *string) bool {
+func checkCj(cjDir *string) (bool, int) {
 	// getting last modification date of tmr file
 	cjTmrInfo, err := os.Stat(*cjDir + "/tmr")
 	if err != nil {
 		curUser, _ := user.Current()
 		log.Printf("awecron error (%s) {%s}: problem getting last modification date of cjDir/tmr file as file info cjTmrInfo", curUser.Username, path.Base(*cjDir))
-		return false
+		// the 0 returned for cjSchedule is fixed later in main()
+		// this also applies to all returns in runCj and scheduleCj
+		return false, 0
 	}
+	cjSchedule := cjTmrInfo.ModTime().Unix()
 	// check if its time to run the cronjob
-	if cjTmrInfo.ModTime().Unix() < time.Now().Unix() {
-		return true
+	if cjSchedule < time.Now().Unix() {
+		return true, 0
 	} else {
-		return false
+		return false, int(cjSchedule)
 	}
 }
 
@@ -141,27 +144,27 @@ func runCj(cjDir *string) bool {
 }
 
 // schedule the next run of the cronjob
-func scheduleCj(cjDir *string) {
+func scheduleCj(cjDir *string) int {
 	// getting the plain text interval configuration
 	// its also possible to do it with fmt.Fscanf, but I've chosen this option
 	cjCfgData, err := os.ReadFile(*cjDir + "/cfg")
 	if err != nil {
 		curUser, _ := user.Current()
 		log.Printf("awecron error (%s) {%s}: problem reading cronjob config file cjDir/cfg and saving as cronjob config data cjCfgData", curUser.Username, path.Base(*cjDir))
-		return
+		return 0
 	}
 	// conversion
 	cjCfg, err := strconv.Atoi(strings.TrimSpace(string(cjCfgData)))
 	if err != nil {
 		curUser, _ := user.Current()
 		log.Printf("awecron error (%s) {%s}: problem converting cronjob config data cjCfgData into cronjob config integer cjCfg", curUser.Username, path.Base(*cjDir))
-		return
+		return 0
 	}
 	// make sure its greater than zero
 	if cjCfg <= 0 {
 		curUser, _ := user.Current()
 		log.Printf("awecron error (%s) {%s}: cronjob config cjCfg should be greater than zero", curUser.Username, path.Base(*cjDir))
-		return
+		return 0
 	}
 	// create tmr file again
 	cjTmr, err := os.Create(*cjDir + "/tmr")
@@ -177,12 +180,36 @@ func scheduleCj(cjDir *string) {
 		curUser, _ := user.Current()
 		log.Fatalf("awecron fatal (%s) {%s}: problem closing tmr file cjTmr", curUser.Username, path.Base(*cjDir))
 	}
+	// get next run time
+	cjSchedule := time.Now().Unix() + int64(cjCfg)
 	// set the next run time as last modification time
-	err = os.Chtimes(*cjDir+"/tmr", time.Time{}, time.Unix(time.Now().Unix()+int64(cjCfg), int64(0)))
+	err = os.Chtimes(*cjDir+"/tmr", time.Time{}, time.Unix(cjSchedule, int64(0)))
 	if err != nil {
 		curUser, _ := user.Current()
 		log.Fatalf("awecron fatal (%s) {%s}: problem setting last modification time of tmr file", curUser.Username, path.Base(*cjDir))
 	}
+	return int(cjSchedule)
+}
+
+// get optimal sleep time until next cronjob
+func getSleepTime(cjSchedules []int, cfg *cfgType) (sleepTime int) {
+	// get the smallest unix time stamp from cronjob schedules
+	minCjSchedule := cjSchedules[0]
+	for _, cjSchedule := range cjSchedules[1:] {
+		if cjSchedule < minCjSchedule {
+			minCjSchedule = cjSchedule
+		}
+	}
+	// get the sleep time
+	sleepTime = minCjSchedule - int(time.Now().Unix())
+	// apply the limits
+	if sleepTime < cfg.Min {
+		sleepTime = cfg.Min
+	} else if sleepTime > cfg.Max {
+		sleepTime = cfg.Max
+	}
+	// return the optimal sleep time
+	return sleepTime
 }
 
 func main() {
@@ -192,27 +219,37 @@ func main() {
 	var cfg cfgType
 	// getting global awecron configuration
 	getCfg(&cfgDir, &cfg)
-	// for testing
+	// TEST: print global config for testing
 	fmt.Print("\nMax: ", cfg.Max, "\nMin: ", cfg.Min, "\nTimeout: ", cfg.Timeout, "\n")
 
-	// getting cronjob directories
-	var cjDirs []string = getCjDirs(&cfgDir)
-
-	// TODO: implement parallelism
-	for d := 0; d < len(cjDirs); d++ {
-		// in awecron.sh I run a separate function for dynamic sleep feature to determine how much for awecron to sleep, which is pretty inefficient
-		// here instead I will make existing functions return necessary values
+	for {
+		// getting cronjob directories
+		cjDirs := getCjDirs(&cfgDir)
+		// array of unix time stamps until next cronjob run
+		var cjSchedules []int
+		// TODO: implement parallelism
 		// TODO: implement timeout here, or for cjCmd
-
-		// check if its necessary to run the cronjob
-		if checkCj(&cjDirs[d]) {
-			// run the cronjob
-			if runCj(&cjDirs[d]) {
-				// schedule the cronjob for next run
-				scheduleCj(&cjDirs[d])
+		for d := 0; d < len(cjDirs); d++ {
+			// in awecron.sh I run a separate function for dynamic sleep feature to determine how much for awecron to sleep, which is pretty inefficient
+			// here instead I will make existing functions return necessary values
+			var cjSchedule int
+			var checkCjReturn bool
+			// check if its necessary to run the cronjob
+			if checkCjReturn, cjSchedule = checkCj(&cjDirs[d]); checkCjReturn {
+				// run the cronjob
+				if runCj(&cjDirs[d]) {
+					// schedule the cronjob for next run
+					cjSchedule = scheduleCj(&cjDirs[d])
+				}
+			}
+			// if the function fails it has to return something as cjSchedule, so it returns 0
+			// so if its 0 it won't add it to the array of schedules at all
+			if cjSchedule != 0 {
+				// append the next run time to the array of schedules
+				cjSchedules = append(cjSchedules, cjSchedule)
 			}
 		}
-		// TODO: dynamic sleep here
+		// get optimal sleep time and sleep for that number of seconds
+		time.Sleep(time.Duration(getSleepTime(cjSchedules, &cfg)) * time.Second)
 	}
-	// ...
 }
