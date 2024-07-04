@@ -23,6 +23,39 @@ var cfg struct {
 	Timeout int
 }
 
+// gets global configuration directory path
+// HACK: this function may need improvements
+func getCfgDir() string {
+	// config in $XDG_CONFIG_DIR/awecron or $HOME/.config/awecron
+	// get user config directory, check if file/directory exists, check if its a directory
+	if userCfgDir, err := os.UserConfigDir(); err == nil {
+		if cfgDirInfo, err := os.Stat(userCfgDir + "/awecron"); err == nil {
+			if cfgDirInfo.IsDir() {
+				// return if successful
+				return userCfgDir + "/awecron"
+			} else {
+				curUser, _ := user.Current()
+				log.Fatalf("awecron fatal (%s): global config directory %s is not a directory", curUser.Username, userCfgDir+"/awecron")
+			}
+		}
+	}
+	// config in /etc/awecron
+	// check if awecron file/directory exists, check if its a directory
+	if cfgDirInfo, err := os.Stat("/etc/awecron"); err == nil {
+		if cfgDirInfo.IsDir() {
+			// return if successful
+			return "/etc/awecron"
+		} else {
+			curUser, _ := user.Current()
+			log.Fatalf("awecron fatal (%s): global config directory %s is not a directory", curUser.Username, "/etc/awecron")
+		}
+	}
+	// could not find any matching directories
+	curUser, _ := user.Current()
+	log.Fatalf("awecron fatal (%s): global config directory does not exist", curUser.Username)
+	return ""
+}
+
 // gets global awecron configuration
 func getCfg(cfgDir *string) {
 	cfgData, err := os.ReadFile(*cfgDir + "/cfg")
@@ -58,14 +91,14 @@ func getCjDirs(cfgDir *string) (cjDirs []string) {
 // check if its time to run the cronjob
 func checkCj(cjDir *string) bool {
 	// getting last modification date of tmr file
-	cjTmr, err := os.Stat(*cjDir + "/tmr")
+	cjTmrInfo, err := os.Stat(*cjDir + "/tmr")
 	if err != nil {
 		curUser, _ := user.Current()
-		log.Printf("awecron error (%s) {%s}: problem getting last modification date of cjDir/tmr file as file info cjTmr", curUser.Username, path.Base(*cjDir))
+		log.Printf("awecron error (%s) {%s}: problem getting last modification date of cjDir/tmr file as file info cjTmrInfo", curUser.Username, path.Base(*cjDir))
 		return false
 	}
 	// check if its time to run the cronjob
-	if cjTmr.ModTime().Unix() < time.Now().Unix() {
+	if cjTmrInfo.ModTime().Unix() < time.Now().Unix() {
 		return true
 	} else {
 		return false
@@ -153,8 +186,7 @@ func scheduleCj(cjDir *string) {
 }
 
 func main() {
-	// TODO: implement awecron config directory detection
-	cfgDir := "/tmp/awecron"
+	cfgDir := getCfgDir()
 
 	// getting global awecron configuration
 	getCfg(&cfgDir)
