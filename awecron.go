@@ -16,8 +16,8 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
-// global awecron config
-var cfg struct {
+// global awecron config type
+type cfgType struct {
 	Max     int
 	Min     int
 	Timeout int
@@ -57,13 +57,13 @@ func getCfgDir() string {
 }
 
 // gets global awecron configuration
-func getCfg(cfgDir *string) {
+func getCfg(cfgDir *string, cfg *cfgType) {
 	cfgData, err := os.ReadFile(*cfgDir + "/cfg")
 	if err != nil {
 		curUser, _ := user.Current()
 		log.Fatalf("awecron fatal (%s): problem reading global config file cfgDir/cfg and saving as global config data cfgData", curUser.Username)
 	}
-	err = toml.Unmarshal(cfgData, &cfg)
+	err = toml.Unmarshal(cfgData, cfg)
 	if err != nil {
 		curUser, _ := user.Current()
 		log.Fatalf("awecron fatal (%s): problem unmarshalling global config data cfgData as struct cfg{}", curUser.Username)
@@ -186,11 +186,12 @@ func scheduleCj(cjDir *string) {
 }
 
 func main() {
+	// getting the config directory
 	cfgDir := getCfgDir()
-
+	// global awecron config
+	var cfg cfgType
 	// getting global awecron configuration
-	getCfg(&cfgDir)
-
+	getCfg(&cfgDir, &cfg)
 	// for testing
 	fmt.Print("\nMax: ", cfg.Max, "\nMin: ", cfg.Min, "\nTimeout: ", cfg.Timeout, "\n")
 
@@ -199,11 +200,15 @@ func main() {
 
 	// TODO: implement parallelism
 	for d := 0; d < len(cjDirs); d++ {
+		// in awecron.sh I run a separate function for dynamic sleep feature to determine how much for awecron to sleep, which is pretty inefficient
+		// here instead I will make existing functions return necessary values
 		// TODO: implement timeout here, or for cjCmd
+
+		// check if its necessary to run the cronjob
 		if checkCj(&cjDirs[d]) {
-			// if cronjob run is successful
+			// run the cronjob
 			if runCj(&cjDirs[d]) {
-				// schedule for next run
+				// schedule the cronjob for next run
 				scheduleCj(&cjDirs[d])
 			}
 		}
