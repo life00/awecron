@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pelletier/go-toml/v2"
@@ -221,34 +222,47 @@ func main() {
 	getCfg(&cfgDir, &cfg)
 	// TEST: print global config for testing
 	fmt.Print("\nMax: ", cfg.Max, "\nMin: ", cfg.Min, "\nTimeout: ", cfg.Timeout, "\n")
-
 	for {
 		// getting cronjob directories
 		cjDirs := getCjDirs(&cfgDir)
 		// array of unix time stamps until next cronjob run
 		var cjSchedules []int
-		// TODO: implement parallelism
-		// TODO: implement timeout here, or for cjCmd
-		for d := 0; d < len(cjDirs); d++ {
-			// in awecron.sh I run a separate function for dynamic sleep feature to determine how much for awecron to sleep, which is pretty inefficient
-			// here instead I will make existing functions return necessary values
-			var cjSchedule int
-			var checkCjReturn bool
-			// check if its necessary to run the cronjob
-			if checkCjReturn, cjSchedule = checkCj(&cjDirs[d]); checkCjReturn {
-				// run the cronjob
-				if runCj(&cjDirs[d]) {
-					// schedule the cronjob for next run
-					cjSchedule = scheduleCj(&cjDirs[d])
+		// create mutex for managing above array inside of goroutines
+		var cjMutex sync.Mutex
+		// create wait group for goroutines
+		var cjWG sync.WaitGroup
+		// TODO: implement timeout
+		for _, cjDir := range cjDirs {
+			// add one goroutine to wait group
+			cjWG.Add(1)
+			// initialize goroutine
+			go func() {
+				defer cjWG.Done()
+				// in awecron.sh I run a separate function for dynamic sleep feature to determine how much for awecron to sleep, which is pretty inefficient
+				// here instead I will make existing functions return necessary values
+				var cjSchedule int
+				var checkCjReturn bool
+				// check if its necessary to run the cronjob
+				if checkCjReturn, cjSchedule = checkCj(&cjDir); checkCjReturn {
+					// run the cronjob
+					if runCj(&cjDir) {
+						// schedule the cronjob for next run
+						cjSchedule = scheduleCj(&cjDir)
+					}
 				}
-			}
-			// if the function fails it has to return something as cjSchedule, so it returns 0
-			// so if its 0 it won't add it to the array of schedules at all
-			if cjSchedule != 0 {
-				// append the next run time to the array of schedules
-				cjSchedules = append(cjSchedules, cjSchedule)
-			}
+				// if the function fails it has to return something as cjSchedule, so it returns 0
+				// so if its 0 it won't add it to the array of schedules at all
+				if cjSchedule != 0 {
+					// mutex lock while appending cjSchedule to an array, then unlock
+					cjMutex.Lock()
+					// append the next run time to the array of schedules
+					cjSchedules = append(cjSchedules, cjSchedule)
+					cjMutex.Unlock()
+				}
+			}()
 		}
+		// wait until all cronjobs finish
+		cjWG.Wait()
 		// get optimal sleep time and sleep for that number of seconds
 		time.Sleep(time.Duration(getSleepTime(cjSchedules, &cfg)) * time.Second)
 	}
