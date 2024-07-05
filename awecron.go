@@ -250,7 +250,7 @@ func main() {
 		var cjMutex sync.Mutex
 		// create wait group for goroutines
 		var cjWG sync.WaitGroup
-		// TODO: implement timeout
+		// loop through cjDirs
 		for _, cjDir := range cjDirs {
 			// add one goroutine to wait group
 			cjWG.Add(1)
