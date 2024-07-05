@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -110,7 +111,7 @@ func checkCj(cjDir *string) (bool, int) {
 }
 
 // run the cronjob
-func runCj(cjDir *string) bool {
+func runCj(cjDir *string, cjTimeout *int) bool {
 	// remove tmr file to disable cronjob in case of errors
 	err := os.Remove(*cjDir + "/tmr")
 	if err != nil {
@@ -118,8 +119,29 @@ func runCj(cjDir *string) bool {
 		// fatal error because if it fails to disable the cronjob due to a problem then there may be an infinite loop
 		log.Fatalf("awecron fatal (%s) {%s}: problem deleting cjDir/tmr file", curUser.Username, path.Base(*cjDir))
 	}
-	// creating the cmd struct
-	cjCmd := exec.Command(*cjDir + "/run")
+	// declaring context timeout
+	cjCtx, cjCtxCancel := context.WithTimeout(context.Background(), time.Duration(*cjTimeout)*time.Second)
+	defer cjCtxCancel()
+	// creating the cmd struct with context timeout
+	cjCmd := exec.CommandContext(cjCtx, *cjDir+"/run")
+	// modifying function which will be used to stop the cronjob if it times out
+	// so that it contains the log message that cronjob has timed out
+	cjCmd.Cancel = func() (err error) {
+		// stopping the cronjob
+		err = cjCmd.Process.Kill()
+		if err != nil {
+			curUser, _ := user.Current()
+			// non fatal error because if cjCmd.Process.Kill() will fail to stop the process
+			// cjCmd.Run() will exit and forward this error, which will say that cronjob returned an error
+			// so it won't reenable the cronjob and there is no persistent problem
+			log.Printf("awecron error (%s) {%s}: failed to stop the timed out cronjob", curUser.Username, path.Base(*cjDir))
+			return err
+		}
+		// log that the cronjob has timed out
+		curUser, _ := user.Current()
+		log.Printf("awecron info (%s) {%s}: cronjob run has timed out, stopping", curUser.Username, path.Base(*cjDir))
+		return nil
+	}
 	// recording stderr
 	// I could've used cjCmd.CombinedOutput() but I am not interested in recording stdout
 	var cjStderr bytes.Buffer
@@ -220,8 +242,7 @@ func main() {
 	var cfg cfgType
 	// getting global awecron configuration
 	getCfg(&cfgDir, &cfg)
-	// TEST: print global config for testing
-	fmt.Print("\nMax: ", cfg.Max, "\nMin: ", cfg.Min, "\nTimeout: ", cfg.Timeout, "\n")
+	// infinite loop
 	for {
 		// getting cronjob directories
 		cjDirs := getCjDirs(&cfgDir)
@@ -245,7 +266,7 @@ func main() {
 				// check if its necessary to run the cronjob
 				if checkCjReturn, cjSchedule = checkCj(&cjDir); checkCjReturn {
 					// run the cronjob
-					if runCj(&cjDir) {
+					if runCj(&cjDir, &cfg.Timeout) {
 						// schedule the cronjob for next run
 						cjSchedule = scheduleCj(&cjDir)
 					}
