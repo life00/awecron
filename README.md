@@ -93,6 +93,16 @@ Afterwards, awecron determines the necessary amount of time to sleep until the n
 
 The whole program is implemented with error safety in mind. All data is validated and errors are handled properly. There are three types of logs that could be outputted. Logs containing INFO tag indicate important events that went as planned without errors. Logs containing ERROR tag indicate that there was a non-fatal error likely due to misconfiguration of a cronjob which will be disable, and such an error does not impact the functionality of the whole cron. Logs containing FATAL tag indicate that there was a fatal error that may impact the functionality of the whole cron which will result in awecron exiting.
 
-## To-Do
+## Additional notes
 
-- [ ] the approximation problem (or feature?) with scheduleCj and checkCj (also applies to awecron.sh)
+### The approximation bug (or feature?)
+
+While rewriting awecron in Go I realized one fundamental problem with the implementation of scheduling cronjobs. This applies to both awecron.sh and awecron.go. The cronjob is scheduled for next run only after it completes its task. This makes sense, however it creates a problem later. Dynamic sleep will choose to awake on the closest cronjob, and those closest cronjobs will run if their timer is less than current time.
+
+The problem emerges when considering for example 3 cronjobs completing their task at 12:00:00 while last cronjob completed its task at 12:00:02 because of resource usage overload. They were scheduled to run next time at 12:10:00 and 12:10:02 respectively. When the time is reached only the first 3 cronjobs run, while the last cronjob is left to run after the minimum sleep interval at 12:10:07. This minimum sleep time (5 seconds) delay will continue until the system shuts down and scheduled time for all cronjobs will be missed, and the cycle repeats.
+
+This behavior is especially noticeable when parallelism / concurrency is disabled because all the cronjobs are slowly completed in order and have higher chance to add up to more than 1 second. This might be considered an undesired behavior and that is what I thought initially. However, after thinking about this for a while I realized that it might be a good throttling mechanism that dynamically separates cronjobs into clusters by groups of cronjobs that successfully complete their task within a second. This may allow avoiding significant resource usage on low-end systems or when there are many demanding cronjobs.
+
+It appears that this bug may actually be considered as a (previously) _unknown feature_. I am not planning to change anything, and I am satisfied with current scheduling design.
+
+## To-Do
