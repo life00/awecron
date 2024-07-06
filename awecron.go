@@ -211,10 +211,15 @@ func scheduleCj(cjDir *string) int {
 }
 
 // get optimal sleep time until next cronjob
-func getSleepTime(cjSchedules []int, cfg *cfgType) (sleepTime int) {
+func getSleepTime(cjSchedules *[]int, cfg *cfgType) (sleepTime int) {
+	// if there is no cronjobs sleep max time
+	if len(*cjSchedules) == 0 {
+		log.Printf("[INFO]: no enabled cronjobs found, sleeping max time")
+		return cfg.Max
+	}
 	// get the smallest unix time stamp from cronjob schedules
-	minCjSchedule := cjSchedules[0]
-	for _, cjSchedule := range cjSchedules[1:] {
+	minCjSchedule := (*cjSchedules)[0]
+	for _, cjSchedule := range (*cjSchedules)[1:] {
 		if cjSchedule < minCjSchedule {
 			minCjSchedule = cjSchedule
 		}
@@ -236,6 +241,7 @@ func main() {
 	setLog()
 	// getting the config directory
 	cfgDir := getCfgDir()
+	cfgDir = "/tmp/awecron"
 	// global awecron config
 	var cfg cfgType
 	// getting global awecron configuration
@@ -283,6 +289,6 @@ func main() {
 		// wait until all cronjobs finish
 		cjWG.Wait()
 		// get optimal sleep time and sleep for that number of seconds
-		time.Sleep(time.Duration(getSleepTime(cjSchedules, &cfg)) * time.Second)
+		time.Sleep(time.Duration(getSleepTime(&cjSchedules, &cfg)) * time.Second)
 	}
 }
