@@ -4,7 +4,9 @@
 
 Awecron is a small and simple custom cron written in Go. The aim of this project is to create a minimal cron with a special scheduling design for desktop / laptop users.
 
-Originally awecron was written in POSIX shell script and it still can be found in [awecron.sh repository](https://github.com/life00/awecron.sh), however users are encouraged to use the awecron implementation in Go instead as it is arguably more suitable for the application, has better error checks and appears to have better performance. It is _fully_^[Except the global awecron config [./cfg](./cfg) in awecron.go is a TOML file, while in awecron.sh it is a shell script file. This however is not a problem because as long as you keep it simple like in the example provided (i.e. only have static configuration) it is cross compatible. This is the reason why TOML was chosen for awecron.go.] cross compatible with the existing awecron.sh configuration.
+Originally awecron was written in POSIX shell script and it still can be found in [awecron.sh repository](https://github.com/life00/awecron.sh), however users are encouraged to use the awecron implementation in Go instead as it is arguably more suitable for the application, has better error checks and appears to have better performance. It is _fully_[^1] cross compatible with the existing awecron.sh configuration.
+
+[^1]: Except the global awecron config [./cfg](./cfg) in awecron.go is a TOML file, while in awecron.sh it is a shell script file. This however is not a problem because as long as you keep it simple like in the example provided (i.e. only have static configuration) it is cross compatible. This is the reason why TOML was chosen for awecron.go.
 
 Most of the following documentation was taken from existing [awecron.sh repository](https://github.com/life00/awecron.sh).
 
