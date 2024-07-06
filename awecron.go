@@ -241,7 +241,6 @@ func main() {
 	setLog()
 	// getting the config directory
 	cfgDir := getCfgDir()
-	cfgDir = "/tmp/awecron"
 	// global awecron config
 	var cfg cfgType
 	// getting global awecron configuration
