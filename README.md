@@ -1,5 +1,9 @@
 # Awesome Cron .go
 
+## WARNING: This is an experimental branch!
+
+This branch contains **experimental** object oriented version of awecron using available OOP Go features. Users are discouraged from using it because it is unoptimized and may contain bugs. This version is poorly designed and serves only as a proof of concept. I may consider improving it in the future.
+
 ## Introduction
 
 Awecron is a small and simple custom cron written in Go. The aim of this project is to create a minimal cron with a special scheduling design for desktop / laptop users.
