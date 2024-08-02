@@ -1,5 +1,9 @@
 # Awesome Cron .go
 
+## WARNING: This is an experimental branch!
+
+This branch contains experimental unit tests for awecron. Use these tests at your own risk. See [Testing section](#testing) for more information.
+
 ## Introduction
 
 Awecron is a small and simple custom cron written in Go. The aim of this project is to create a minimal cron with a special scheduling design for desktop / laptop users.
@@ -106,5 +110,11 @@ The problem emerges when considering for example 3 cronjobs completing their tas
 This behavior is especially noticeable when parallelism / concurrency is disabled because all the cronjobs are slowly completed in order and have higher chance to add up to more than 1 second. This might be considered an undesired behavior and that is what I thought initially. However, after thinking about this for a while I realized that it might be a good throttling mechanism that dynamically separates cronjobs into clusters by groups of cronjobs that successfully complete their task within a second. This may allow avoiding significant resource usage on low-end systems or when there are many demanding cronjobs.
 
 It appears that this bug may actually be considered as a (previously) _unknown feature_. I am not planning to change anything, and I am satisfied with current scheduling design.
+
+### Testing
+
+I have implemented some basic unit tests for awecron mostly as a way to practice creation of unit tests. I have written tests for all functions except for `main()` and `GetCfgDir()` because is it rather difficult or even impossible to test those in an isolated environment. In addition to that, I have also not tested the log output and fatal errors because of the complexity required (you may see my comments in `./awecron_test.go` file). At the end I managed to achieve 58.5% test coverage of the code.
+
+To run the tests use the command: `go test -v -cover`; or if you want to test a specific function: `go test -v -cover -run FunctionName`.
 
 ## To-Do
